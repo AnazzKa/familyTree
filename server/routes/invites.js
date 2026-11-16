@@ -67,8 +67,20 @@ router.post('/join/:code', authenticate, (req, res) => {
   db.run('INSERT INTO tree_members (tree_id, user_id, role) VALUES (?, ?, ?)', [invite.tree_id, req.user.id, 'editor']);
   db.run('UPDATE invites SET used_by = ? WHERE id = ?', [req.user.id, invite.id]);
 
+  const user = db.get('SELECT id, name FROM users WHERE id = ?', [req.user.id]);
+
   if (invite.member_id) {
+    // Link user account to existing family member entry
     db.run('UPDATE family_members SET linked_user_id = ? WHERE id = ? AND tree_id = ?', [req.user.id, invite.member_id, invite.tree_id]);
+  } else {
+    // Auto-create a family member entry for the joining user
+    const alreadyInTree = db.get('SELECT id FROM family_members WHERE tree_id = ? AND linked_user_id = ?', [invite.tree_id, req.user.id]);
+    if (!alreadyInTree) {
+      db.run(
+        'INSERT INTO family_members (tree_id, name, linked_user_id, added_by) VALUES (?, ?, ?, ?)',
+        [invite.tree_id, user.name, req.user.id, req.user.id]
+      );
+    }
   }
 
   const tree = db.get('SELECT * FROM family_trees WHERE id = ?', [invite.tree_id]);
